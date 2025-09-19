@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Criticality Assessment</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #4a5568;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #edf2f7;
+        }
+
+        .btn-voice {
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-voice:hover {
+            transform: scale(1.1);
+        }
+
+        .btn-voice.recording {
+            background: linear-gradient(45deg, #f56565, #e53e3e);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .criticality-mild {
+            background: linear-gradient(45deg, #48bb78, #68d391);
+            color: white;
+        }
+
+        .criticality-moderate {
+            background: linear-gradient(45deg, #ed8936, #f6ad55);
+            color: white;
+        }
+
+        .criticality-critical {
+            background: linear-gradient(45deg, #f56565, #fc8181);
+            color: white;
+        }
+
+        #map {
+            height: 400px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .location-input {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .health-centers {
+            margin-top: 20px;
+        }
+
+        .center-item {
+            background: #f7fafc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-indicator {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            .location-input {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .voice-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .speaker-btn {
+            background: linear-gradient(45deg, #9f7aea, #b794f6);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Health Criticality Assessment System</h1>
+            <p>AI-powered symptom analysis with location-based healthcare services</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Symptom Analysis Section -->
+            <div class="card">
+                <h2>🩺 Symptom Analysis</h2>
+                
+                <div class="input-group">
+                    <label for="symptoms">Describe Symptoms:</label>
+                    <div class="input-row">
+                        <textarea id="symptoms" placeholder="Enter symptoms separated by spaces or describe in detail..."></textarea>
+                        <button id="voiceBtn" class="btn btn-voice" title="Voice Input">🎤</button>
+                    </div>
+                    <div class="voice-controls">
+                        <small id="voiceStatus">Click microphone to start voice input</small>
+                    </div>
+                </div>
+
+                <button id="analyzeBtn" class="btn btn-primary" style="width: 100%;">
+                    Analyze Symptoms
+                </button>
+
+                <div id="results" class="results" style="display: none;">
+                    <h3>Analysis Results:</h3>
+                    <div id="criticalityResult"></div>
+                    <div class="voice-controls">
+                        <button id="speakBtn" class="btn speaker-btn" title="Listen to Results">🔊</button>
+                        <small>Click to hear results</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Section -->
+            <div class="card">
+                <h2>🗺️ Nearby Health Services</h2>
+                
+                <div class="location-input">
+                    <div>
+                        <label for="latitude">Latitude:</label>
+                        <input type="number" id="latitude" value="12.9700" step="0.000001">
+                    </div>
+                    <div>
+                        <label for="longitude">Longitude:</label>
+                        <input type="number" id="longitude" value="77.5940" step="0.000001">
+                    </div>
+                </div>
+
+                <button id="updateLocationBtn" class="btn btn-secondary" style="width: 100%; margin-bottom: 20px;">
+                    Update Location
+                </button>
+
+                <div id="map"></div>
+
+                <div class="health-centers">
+                    <h3>Nearest Health Centers:</h3>
+                    <div id="centersList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let map;
+        let userMarker;
+        let healthMarkers = [];
+        let isRecording = false;
+        let recognition;
+        let speechSynth = window.speechSynthesis;
+
+        // Health centers database
+        const healthCenters = [
+            {name: "Refugee Health Center", lat: 12.9716, lon: 77.5946, type: "clinic"},
+            {name: "Community Hospital", lat: 12.9750, lon: 77.5920, type: "hospital"},
+            {name: "NGO Medical Camp", lat: 12.9680, lon: 77.6000, type: "mobile_camp"},
+            {name: "Emergency Care Unit", lat: 12.9650, lon: 77.5970, type: "emergency"},
+            {name: "Primary Health Center", lat: 12.9780, lon: 77.5890, type: "clinic"},
+        ];
+
+        // Initialize speech recognition
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = function() {
+                    isRecording = true;
+                    document.getElementById('voiceBtn').classList.add('recording');
+                    document.getElementById('voiceStatus').textContent = 'Listening... Speak now';
+                };
+
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('symptoms').value = transcript;
+                    document.getElementById('voiceStatus').textContent = 'Voice input received';
+                };
+
+                recognition.onerror = function(event) {
+                    document.getElementById('voiceStatus').textContent = 'Voice recognition error: ' + event.error;
+                };
+
+                recognition.onend = function() {
+                    isRecording = false;
+                    document.getElementById('voiceBtn').classList.remove('recording');
+                    if (document.getElementById('voiceStatus').textContent === 'Listening... Speak now') {
+                        document.getElementById('voiceStatus').textContent = 'No speech detected. Try again.';
+                    }
+                };
+            } else {
+                document.getElementById('voiceStatus').textContent = 'Speech recognition not supported';
+            }
+        }
+
+        // Text-to-speech function
+        function speakText(text) {
+            if (speechSynth.speaking) {
+                speechSynth.cancel();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.8;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            speechSynth.speak(utterance);
+        }
+
+        // Haversine distance calculation
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Simulate ML model prediction (replace with actual TensorFlow.js model loading)
+        async function predictCriticality(symptoms) {
+            // Simulate processing time
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Simple keyword-based simulation (replace with actual model inference)
+            const criticalKeywords = ['severe', 'critical', 'emergency', 'bleeding', 'unconscious', 'heart attack', 'stroke'];
+            const moderateKeywords = ['pain', 'fever', 'nausea', 'headache', 'dizzy', 'breathing'];
+            
+            const symptomsLower = symptoms.toLowerCase();
+            
+            if (criticalKeywords.some(keyword => symptomsLower.includes(keyword))) {
+                return {prediction: 2, confidence: 0.85, label: 'Critical'};
+            } else if (moderateKeywords.some(keyword => symptomsLower.includes(keyword))) {
+                return {prediction: 1, confidence: 0.70, label: 'Moderate'};
+            } else {
+                return {prediction: 0, confidence: 0.60, label: 'Mild'};
+            }
+        }
+
+        // Initialize map
+        function initMap() {
+            const lat = parseFloat(document.getElementById('latitude').value);
+            const lon = parseFloat(document.getElementById('longitude').value);
+            
+            map = L.map('map').setView([lat, lon], 14);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            updateMap();
+        }
+
+        // Update map with user location and health centers
+        function updateMap() {
+            const lat = parseFloat(document.getElementById('latitude').value);
+            const lon = parseFloat(document.getElementById('longitude').value);
+            
+            // Clear existing markers
+            if (userMarker) map.removeLayer(userMarker);
+            healthMarkers.forEach(marker => map.removeLayer(marker));
+            healthMarkers = [];
+            
+            // Add user marker
+            userMarker = L.marker([lat, lon], {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                })
+            }).addTo(map);
+            userMarker.bindPopup("📍 Your Location").openPopup();
+            
+            // Calculate distances and sort
+            const centersWithDistance = healthCenters.map(center => ({
+                ...center,
+                distance: haversine(lat, lon, center.lat, center.lon)
+            })).sort((a, b) => a.distance - b.distance);
+            
+            // Add health center markers (top 5 nearest)
+            const nearestCenters = centersWithDistance.slice(0, 5);
+            nearestCenters.forEach(center => {
+                const marker = L.marker([center.lat, center.lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                }).addTo(map);
+                marker.bindPopup(`🏥 ${center.name}<br>Type: ${center.type}<br>Distance: ${center.distance.toFixed(2)} km`);
+                healthMarkers.push(marker);
+            });
+            
+            // Update centers list
+            updateCentersList(nearestCenters);
+            
+            // Fit map to show all markers
+            const group = new L.featureGroup([userMarker, ...healthMarkers]);
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+
+        // Update health centers list
+        function updateCentersList(centers) {
+            const centersList = document.getElementById('centersList');
+            centersList.innerHTML = '';
+            
+            centers.forEach(center => {
+                const div = document.createElement('div');
+                div.className = 'center-item';
+                
+                const typeEmoji = {
+                    'clinic': '🏥',
+                    'hospital': '🏨',
+                    'mobile_camp': '🚑',
+                    'emergency': '🆘'
+                };
+                
+                div.innerHTML = `
+                    <div>
+                        <strong>${typeEmoji[center.type] || '🏥'} ${center.name}</strong>
+                        <br><small>${center.type}</small>
+                    </div>
+                    <div class="status-indicator" style="background: ${center.distance < 2 ? '#48bb78' : center.distance < 5 ? '#ed8936' : '#a0aec0'};">
+                        ${center.distance.toFixed(2)} km
+                    </div>
+                `;
+                centersList.appendChild(div);
+            });
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            initSpeechRecognition();
+            initMap();
+            
+            // Voice input button
+            document.getElementById('voiceBtn').addEventListener('click', function() {
+                if (recognition) {
+                    if (!isRecording) {
+                        recognition.start();
+                    } else {
+                        recognition.stop();
+                    }
+                }
+            });
+            
+            // Analyze symptoms button
+            document.getElementById('analyzeBtn').addEventListener('click', async function() {
+                const symptoms = document.getElementById('symptoms').value.trim();
+                if (!symptoms) {
+                    alert('Please enter symptoms or use voice input');
+                    return;
+                }
+                
+                const btn = this;
+                const originalText = btn.textContent;
+                btn.innerHTML = '<div class="loading"></div> Analyzing...';
+                btn.disabled = true;
+                
+                try {
+                    const result = await predictCriticality(symptoms);
+                    displayResults(result);
+                } catch (error) {
+                    alert('Error analyzing symptoms: ' + error.message);
+                } finally {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
+            });
+            
+            // Update location button
+            document.getElementById('updateLocationBtn').addEventListener('click', updateMap);
+            
+            // Speak results button
+            document.getElementById('speakBtn').addEventListener('click', function() {
+                const resultsDiv = document.getElementById('criticalityResult');
+                if (resultsDiv.textContent) {
+                    speakText(resultsDiv.textContent);
+                }
+            });
+            
+            // Get user location button
+            if (navigator.geolocation) {
+                const locationBtn = document.createElement('button');
+                locationBtn.textContent = '📍 Use My Location';
+                locationBtn.className = 'btn btn-secondary';
+                locationBtn.style.width = '100%';
+                locationBtn.style.marginBottom = '10px';
+                locationBtn.addEventListener('click', function() {
+                    navigator.geolocation.getCurrentPosition(function(position) {
+                        document.getElementById('latitude').value = position.coords.latitude.toFixed(6);
+                        document.getElementById('longitude').value = position.coords.longitude.toFixed(6);
+                        updateMap();
+                    }, function(error) {
+                        alert('Error getting location: ' + error.message);
+                    });
+                });
+                document.querySelector('.location-input').parentNode.insertBefore(locationBtn, document.querySelector('.location-input').nextSibling);
+            }
+        });
+
+        // Display analysis results
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            const criticalityDiv = document.getElementById('criticalityResult');
+            
+            const criticalityClass = {
+                0: 'criticality-mild',
+                1: 'criticality-moderate',
+                2: 'criticality-critical'
+            };
+            
+            const recommendations = {
+                0: 'Monitor symptoms. Consider home care or routine consultation.',
+                1: 'Seek medical attention within 24-48 hours. Visit nearest clinic.',
+                2: 'URGENT: Seek immediate emergency medical care. Contact emergency services.'
+            };
+            
+            criticalityDiv.innerHTML = `
+                <div class="status-indicator ${criticalityClass[result.prediction]}" style="width: 100%; text-align: center; padding: 15px; margin: 10px 0;">
+                    <strong>${result.label.toUpperCase()}</strong> (Confidence: ${(result.confidence * 100).toFixed(1)}%)
+                </div>
+                <p><strong>Recommendation:</strong> ${recommendations[result.prediction]}</p>
+            `;
+            
+            resultsDiv.style.display = 'block';
+            
+            // Auto-speak results if critical
+            if (result.prediction === 2) {
+                setTimeout(() => {
+                    speakText(`Critical condition detected. ${recommendations[result.prediction]}`);
+                }, 500);
+            }
+        }
+    </script>
+</body>
+</html>

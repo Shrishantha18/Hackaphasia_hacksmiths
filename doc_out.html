@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏥 Doctor-Patient Appointment Scheduler</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .severity-critical {
+            background: linear-gradient(45deg, #ef4444, #f87171);
+        }
+        .severity-moderate {
+            background: linear-gradient(45deg, #f59e0b, #fbbf24);
+        }
+        .severity-mild {
+            background: linear-gradient(45deg, #10b981, #34d399);
+        }
+        .chat-message {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pending-pulse {
+            animation: pulse 2s infinite;
+        }
+        .confirmed-bounce {
+            animation: bounce 1s ease-out;
+        }
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
+            40%, 43% { transform: translateY(-10px); }
+            70% { transform: translateY(-5px); }
+        }
+        .typing-indicator {
+            animation: typing 1.5s infinite;
+        }
+        @keyframes typing {
+            0%, 60%, 100% { transform: scale(1); }
+            30% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
+                🏥 Doctor Appointment Scheduler
+            </h1>
+            <p class="text-xl text-white opacity-90">
+                 Patient-Doctor Appointment Management System
+            </p>
+        </div>
+
+        <!-- Upload Cases Section -->
+        <div class="glass-effect rounded-3xl p-8 mb-8 text-white">
+            <h2 class="text-2xl font-bold mb-4 flex items-center">
+                <i class="fas fa-file-upload mr-3"></i>Load Patient Cases
+            </h2>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Upload JSON file or paste JSON data:</label>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <input type="file" id="jsonFile" accept=".json" 
+                           class="flex-1 px-4 py-3 rounded-xl bg-white bg-opacity-10 border border-white border-opacity-20 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600">
+                    <button onclick="loadSampleData()" 
+                            class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl transition duration-300">
+                        <i class="fas fa-flask mr-2"></i>Load Sample Data
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <textarea id="jsonTextArea" placeholder='Paste your JSON data here... Example: [{"id": 1, "name": "John Doe", "severity": "critical"}, ...]'
+                          class="w-full px-4 py-3 rounded-xl bg-white bg-opacity-10 border border-white border-opacity-20 text-white placeholder-white placeholder-opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                          rows="6"></textarea>
+            </div>
+
+            <button onclick="processCases()" 
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-xl font-bold transition duration-300">
+                <i class="fas fa-play mr-3"></i>Start Processing Cases
+            </button>
+        </div>
+
+        <!-- Cases Processing Section -->
+        <div id="processingSection" class="hidden">
+            <!-- Current Case -->
+            <div id="currentCaseSection" class="glass-effect rounded-3xl p-8 mb-8 text-white">
+                <h2 class="text-2xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-user-injured mr-3"></i>Current Case
+                </h2>
+                <div id="currentCaseCard" class="p-6 rounded-xl mb-6">
+                    <!-- Case details will be populated here -->
+                </div>
+                
+                <!-- Skip Button -->
+                <div class="text-center mb-4">
+                    <button id="skipCaseBtn" onclick="skipCurrentCase()" 
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-xl transition duration-300">
+                        <i class="fas fa-forward mr-2"></i>Skip Case (Mild severity)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div id="chatSection" class="glass-effect rounded-3xl p-8 mb-8 text-white">
+                <h2 class="text-2xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-comments mr-3"></i>Appointment Scheduling Chat
+                </h2>
+                <div id="chatMessages" class="bg-white bg-opacity-5 rounded-xl p-6 mb-6 h-80 overflow-y-auto">
+                    <!-- Chat messages will appear here -->
+                </div>
+
+                <!-- Doctor Input Section -->
+                <div id="doctorInputSection" class="hidden mb-4">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                            <i class="fas fa-user-md text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">👨‍⚕️ Doctor's Response</h3>
+                    </div>
+                    <div class="flex gap-4">
+                        <input type="datetime-local" id="appointmentSlot" 
+                               class="flex-1 px-4 py-3 rounded-xl bg-white bg-opacity-10 border border-white border-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <button onclick="proposeSlot()" 
+                                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl transition duration-300">
+                            <i class="fas fa-calendar-plus mr-2"></i>Propose Slot
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Patient Response Section -->
+                <div id="patientResponseSection" class="hidden">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                            <i class="fas fa-user text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">🙍 Patient's Response</h3>
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="patientResponse('yes')" 
+                                class="flex-1 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl transition duration-300">
+                            <i class="fas fa-check mr-2"></i>Yes, I Agree
+                        </button>
+                        <button onclick="patientResponse('no')" 
+                                class="flex-1 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl transition duration-300">
+                            <i class="fas fa-times mr-2"></i>No, Propose Another
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appointments Summary -->
+        <div id="appointmentsSection" class="glass-effect rounded-3xl p-8 text-white">
+            <h2 class="text-2xl font-bold mb-4 flex items-center">
+                <i class="fas fa-calendar-check mr-3"></i>Confirmed Appointments
+                <span id="appointmentCount" class="ml-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm">0</span>
+            </h2>
+            <div id="appointmentsList">
+                <div class="text-center text-white opacity-60 py-8">
+                    <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                    <p>No appointments confirmed yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let cases = [];
+        let currentCaseIndex = 0;
+        let appointments = [];
+        let currentCase = null;
+        let isProcessing = false;
+
+        // Sample data for demonstration
+        const sampleCases = [
+            { "id": 1, "name": "John Smith", "severity": "critical", "symptoms": "chest pain, shortness of breath" },
+            { "id": 2, "name": "Mary Johnson", "severity": "moderate", "symptoms": "persistent headache, nausea" },
+            { "id": 3, "name": "Robert Brown", "severity": "mild", "symptoms": "minor cough, slight fever" },
+            { "id": 4, "name": "Sarah Wilson", "severity": "critical", "symptoms": "severe abdominal pain" },
+            { "id": 5, "name": "Michael Davis", "severity": "moderate", "symptoms": "back pain, muscle stiffness" },
+            { "id": 6, "name": "Emily Garcia", "severity": "mild", "symptoms": "runny nose, mild headache" }
+        ];
+
+        // Load sample data
+        function loadSampleData() {
+            document.getElementById('jsonTextArea').value = JSON.stringify(sampleCases, null, 2);
+            showNotification('Sample data loaded successfully!', 'success');
+        }
+
+        // Handle file upload
+        document.getElementById('jsonFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/json') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+                        document.getElementById('jsonTextArea').value = JSON.stringify(jsonData, null, 2);
+                        showNotification('JSON file loaded successfully!', 'success');
+                    } catch (error) {
+                        showNotification('Invalid JSON file format', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Process cases from JSON
+        function processCases() {
+            const jsonText = document.getElementById('jsonTextArea').value.trim();
+            if (!jsonText) {
+                showNotification('Please provide JSON data first', 'warning');
+                return;
+            }
+
+            try {
+                cases = JSON.parse(jsonText);
+                if (!Array.isArray(cases) || cases.length === 0) {
+                    throw new Error('JSON should be an array of cases');
+                }
+
+                // Reset state
+                currentCaseIndex = 0;
+                appointments = [];
+                updateAppointmentsList();
+
+                // Show processing section
+                document.getElementById('processingSection').classList.remove('hidden');
+                
+                // Start processing first case
+                processNextCase();
+                
+                showNotification(`Processing ${cases.length} cases...`, 'info');
+                
+            } catch (error) {
+                showNotification('Invalid JSON format: ' + error.message, 'error');
+            }
+        }
+
+        // Process next case
+        function processNextCase() {
+            if (currentCaseIndex >= cases.length) {
+                finishProcessing();
+                return;
+            }
+
+            currentCase = cases[currentCaseIndex];
+            const severity = currentCase.severity?.toLowerCase() || 'unknown';
+
+            displayCurrentCase(currentCase, severity);
+
+            if (severity === 'critical' || severity === 'moderate') {
+                addChatMessage('system', `⚠️ New case for doctor: ${currentCase.name} (${severity})`);
+                showDoctorInput();
+            } else {
+                addChatMessage('system', `ℹ️ ${currentCase.name} has ${severity} case → no appointment needed.`);
+                setTimeout(() => {
+                    skipCurrentCase();
+                }, 2000);
+            }
+        }
+
+        // Display current case
+        function displayCurrentCase(caseData, severity) {
+            const severityClass = `severity-${severity}`;
+            const severityIcon = severity === 'critical' ? '🚨' : 
+                                severity === 'moderate' ? '⚠️' : 'ℹ️';
+
+            document.getElementById('currentCaseCard').innerHTML = `
+                <div class="${severityClass} p-6 rounded-xl text-white">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-2xl font-bold">${severityIcon} ${caseData.name}</h3>
+                        <span class="text-lg font-semibold uppercase">${severity}</span>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm opacity-80 mb-1">Case ID:</p>
+                            <p class="font-semibold">#${caseData.id}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm opacity-80 mb-1">Symptoms:</p>
+                            <p class="font-semibold">${caseData.symptoms || 'Not specified'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Update skip button visibility
+            const skipBtn = document.getElementById('skipCaseBtn');
+            if (severity === 'mild' || severity === 'unknown') {
+                skipBtn.classList.remove('hidden');
+            } else {
+                skipBtn.classList.add('hidden');
+            }
+        }
+
+        // Skip current case
+        function skipCurrentCase() {
+            currentCaseIndex++;
+            clearChat();
+            hideAllInputSections();
+            processNextCase();
+        }
+
+        // Add message to chat
+        function addChatMessage(type, message, sender = null) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message mb-4';
+
+            let bgColor, icon, senderName;
+            switch(type) {
+                case 'doctor':
+                    bgColor = 'bg-blue-500';
+                    icon = 'fa-user-md';
+                    senderName = '👨‍⚕️ Doctor';
+                    break;
+                case 'patient':
+                    bgColor = 'bg-green-500';
+                    icon = 'fa-user';
+                    senderName = `🙍 ${currentCase?.name || 'Patient'}`;
+                    break;
+                case 'chatbot':
+                    bgColor = 'bg-purple-500';
+                    icon = 'fa-robot';
+                    senderName = '🤖 Chatbot';
+                    break;
+                default:
+                    bgColor = 'bg-gray-500';
+                    icon = 'fa-info-circle';
+                    senderName = '📋 System';
+            }
+
+            messageDiv.innerHTML = `
+                <div class="flex items-start space-x-3">
+                    <div class="w-8 h-8 ${bgColor} rounded-full flex items-center justify-center flex-shrink-0">
+                        <i class="fas ${icon} text-white text-sm"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-sm mb-1">${senderName}</p>
+                        <p class="text-white bg-white bg-opacity-10 rounded-lg px-4 py-2">${message}</p>
+                        <p class="text-xs opacity-60 mt-1">${new Date().toLocaleTimeString()}</p>
+                    </div>
+                </div>
+            `;
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Show doctor input section
+        function showDoctorInput() {
+            hideAllInputSections();
+            document.getElementById('doctorInputSection').classList.remove('hidden');
+            
+            // Set minimum date to current time
+            const now = new Date();
+            const minDateTime = now.toISOString().slice(0, 16);
+            document.getElementById('appointmentSlot').min = minDateTime;
+        }
+
+        // Show patient response section
+        function showPatientResponse(proposedSlot) {
+            hideAllInputSections();
+            document.getElementById('patientResponseSection').classList.remove('hidden');
+        }
+
+        // Hide all input sections
+        function hideAllInputSections() {
+            document.getElementById('doctorInputSection').classList.add('hidden');
+            document.getElementById('patientResponseSection').classList.add('hidden');
+        }
+
+        // Doctor proposes appointment slot
+        function proposeSlot() {
+            const slotInput = document.getElementById('appointmentSlot').value;
+            if (!slotInput) {
+                showNotification('Please select an appointment time', 'warning');
+                return;
+            }
+
+            const slot = new Date(slotInput);
+            const formattedSlot = slot.toLocaleString();
+
+            addChatMessage('doctor', `I'm available at ${formattedSlot}. Would this work for you?`);
+            
+            setTimeout(() => {
+                addChatMessage('chatbot', `${currentCase.name}, doctor is available at ${formattedSlot}. Do you agree?`);
+                showPatientResponse(slot);
+            }, 1000);
+        }
+
+        // Patient responds to appointment proposal
+        function patientResponse(response) {
+            const slot = document.getElementById('appointmentSlot').value;
+            const formattedSlot = new Date(slot).toLocaleString();
+
+            if (response === 'yes') {
+                addChatMessage('patient', 'Yes, I agree to this appointment time.');
+                
+                setTimeout(() => {
+                    // Confirm appointment
+                    const appointment = {
+                        patient: currentCase.name,
+                        case_id: currentCase.id,
+                        severity: currentCase.severity,
+                        appointment_time: new Date(slot).toISOString(),
+                        status: 'confirmed',
+                        symptoms: currentCase.symptoms
+                    };
+                    
+                    appointments.push(appointment);
+                    updateAppointmentsList();
+                    
+                    addChatMessage('system', `✅ Appointment confirmed for ${currentCase.name} at ${formattedSlot}`);
+                    
+                    setTimeout(() => {
+                        currentCaseIndex++;
+                        clearChat();
+                        processNextCase();
+                    }, 2000);
+                }, 1000);
+                
+            } else {
+                addChatMessage('patient', 'No, that time doesn\'t work for me. Please suggest another time.');
+                
+                setTimeout(() => {
+                    addChatMessage('chatbot', '❌ Patient rejected. Doctor, please propose another slot.');
+                    showDoctorInput();
+                }, 1000);
+            }
+        }
+
+        // Update appointments list
+        function updateAppointmentsList() {
+            const appointmentsList = document.getElementById('appointmentsList');
+            const appointmentCount = document.getElementById('appointmentCount');
+            
+            appointmentCount.textContent = appointments.length;
+
+            if (appointments.length === 0) {
+                appointmentsList.innerHTML = `
+                    <div class="text-center text-white opacity-60 py-8">
+                        <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                        <p>No appointments confirmed yet</p>
+                    </div>
+                `;
+                return;
+            }
+
+            appointmentsList.innerHTML = appointments.map(appointment => {
+                const appointmentTime = new Date(appointment.appointment_time);
+                const severityColor = appointment.severity === 'critical' ? 'border-red-500' : 'border-yellow-500';
+                const severityIcon = appointment.severity === 'critical' ? '🚨' : '⚠️';
+                
+                return `
+                    <div class="bg-white bg-opacity-10 rounded-xl p-6 mb-4 border-l-4 ${severityColor} confirmed-bounce">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold text-white">${severityIcon} ${appointment.patient}</h3>
+                            <span class="px-3 py-1 bg-green-500 text-white text-sm rounded-full">
+                                <i class="fas fa-check mr-1"></i>Confirmed
+                            </span>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-white opacity-70 mb-1">Case ID:</p>
+                                <p class="text-white font-semibold">#${appointment.case_id}</p>
+                            </div>
+                            <div>
+                                <p class="text-white opacity-70 mb-1">Severity:</p>
+                                <p class="text-white font-semibold capitalize">${appointment.severity}</p>
+                            </div>
+                            <div>
+                                <p class="text-white opacity-70 mb-1">Appointment Time:</p>
+                                <p class="text-white font-semibold">
+                                    <i class="fas fa-calendar mr-1"></i>${appointmentTime.toLocaleDateString()}
+                                    <i class="fas fa-clock ml-3 mr-1"></i>${appointmentTime.toLocaleTimeString()}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-white opacity-70 mb-1">Symptoms:</p>
+                                <p class="text-white font-semibold">${appointment.symptoms || 'Not specified'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Clear chat messages
+        function clearChat() {
+            document.getElementById('chatMessages').innerHTML = '';
+        }
+
+        // Finish processing all cases
+        function finishProcessing() {
+            addChatMessage('system', `✅ All cases processed! Total appointments confirmed: ${appointments.length}`);
+            hideAllInputSections();
+            
+            showNotification(`Processing complete! ${appointments.length} appointments confirmed.`, 'success');
+            
+            // Show final summary
+            setTimeout(() => {
+                document.getElementById('appointmentsSection').scrollIntoView({ behavior: 'smooth' });
+            }, 1000);
+        }
+
+        // Utility function to show notifications
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-xl text-white z-50 transition-all duration-300 transform translate-x-full`;
+            
+            switch(type) {
+                case 'success':
+                    notification.className += ' bg-green-500';
+                    break;
+                case 'error':
+                    notification.className += ' bg-red-500';
+                    break;
+                case 'warning':
+                    notification.className += ' bg-yellow-500';
+                    break;
+                case 'info':
+                    notification.className += ' bg-blue-500';
+                    break;
+            }
+            
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (notification.parentElement) {
+                        notification.remove();
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Initialize datetime input with current time
+        document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 30); // Default to 30 minutes from now
+            const defaultDateTime = now.toISOString().slice(0, 16);
+            document.getElementById('appointmentSlot').value = defaultDateTime;
+        });
+    </script>
+</body>
+</html>
